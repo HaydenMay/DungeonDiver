@@ -45,6 +45,7 @@ export function createHUD(app) {
   function init() {
     const root = document.createElement("div");
     root.id = "hud";
+    root.style.display = "none";
     root.innerHTML = `
       <div class="hud-top">
         <div class="stat-bars">
@@ -384,6 +385,14 @@ export function createHUD(app) {
     el.runComplete.style.display = "none";
   }
 
+  function show() {
+    el.root.style.display = "block";
+  }
+
+  function hide() {
+    el.root.style.display = "none";
+  }
+
   function showRunCompleteUI() {
     rcSelected = [
       app.run.state.permanentVault[0] ? app.run.state.permanentVault[0].id : null,
@@ -471,5 +480,7 @@ export function createHUD(app) {
     flashRoomTransition,
     showWaveComplete,
     hideWaveComplete,
+    show,
+    hide,
   };
 }

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-export function createCameraRig(camera, canvas) {
+export function createCameraRig(camera, canvas, input = null) {
   const target = new THREE.Vector3();
   const desiredPos = new THREE.Vector3();
   const currentTarget = new THREE.Vector3(0, 1.4, 0);
@@ -36,6 +36,15 @@ export function createCameraRig(camera, canvas) {
       followTarget = obj;
     },
     update(dt, position, facingY) {
+      if (input && input.state && input.state.isTouchDevice) {
+        const cam = input.consumeCameraDelta();
+        if (cam) {
+          orbit.yaw -= cam.dx * 0.005;
+          orbit.pitch -= cam.dy * 0.005;
+          orbit.pitch = Math.max(minPitch, Math.min(maxPitch, orbit.pitch));
+        }
+      }
+
       if (!followTarget) return;
       const camTargetX = position.x;
       const camTargetY = position.y + 1.4;

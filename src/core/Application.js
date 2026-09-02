@@ -6,9 +6,12 @@ import { createCombatSystem } from "../combat/CombatSystem.js";
 import { createLootSystem } from "../loot/LootSystem.js";
 import { createRunManager } from "../run/RunManager.js";
 import { createHUD } from "../ui/HUD.js";
+import { createMenuHUD } from "../ui/MenuHUD.js";
+import { createMenuScene } from "./MenuScene.js";
 import { createCameraRig } from "../core/CameraRig.js";
 import { createInput } from "../core/Input.js";
 import { RNG } from "../core/RNG.js";
+import { loadVault, saveVault } from "../core/Persistence.js";
 
 export class Application {
   constructor() {
@@ -26,6 +29,7 @@ export class Application {
       victory: false,
       runComplete: false,
       wavePause: false,
+      mode: "menu",
     };
 
     this._initRenderer();
@@ -33,7 +37,11 @@ export class Application {
     this._initCamera();
     this._initInput();
 
-    this.cameraRig = createCameraRig(this.camera, this.canvas);
+    this.cameraRig = createCameraRig(this.camera, this.canvas, this.input);
+
+    this.menuScene = createMenuScene();
+    this.menuHUD = createMenuHUD(this);
+
     this.dungeon = createDungeon(this.scene, this.rng);
     this.knight = createKnight(this.scene, this);
     this.enemies = createEnemyManager(this.scene, this.rng, this.camera);
@@ -45,6 +53,9 @@ export class Application {
     this._connectSystems();
     this._addResizeListener();
     this._addHotkeys();
+
+    this.menuScene.setActive(true);
+    this.menuHUD.show();
   }
 
   _initRenderer() {
@@ -71,7 +82,6 @@ export class Application {
     const hemi = new THREE.HemisphereLight(0x6a5a48, 0x1a1410, 0.32);
     this.scene.add(hemi);
 
-    // Single overhead directional light for player shadow (cheap, 1 shadow pass)
     const sun = new THREE.DirectionalLight(0xfff0e0, 0.7);
     sun.position.set(0, 12, 0);
     sun.castShadow = true;
@@ -118,18 +128,19 @@ export class Application {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
+      if (this.menuScene) this.menuScene.onResize();
     });
   }
 
   _addHotkeys() {
     window.addEventListener("keydown", (e) => {
-      if (e.code === "KeyP") {
+      if (e.code === "KeyP" && this.state.mode === "game") {
         this.screenshot();
-      } else if (e.code === "KeyR" && (this.state.gameOver || this.state.runComplete)) {
+      } else if (e.code === "KeyR" && this.state.mode === "game" && (this.state.gameOver || this.state.runComplete)) {
         this.restart();
-      } else if (e.code === "Escape") {
+      } else if (e.code === "Escape" && this.state.mode === "game") {
         this.state.paused = !this.state.paused;
-      } else if (e.code === "KeyI") {
+      } else if (e.code === "KeyI" && this.state.mode === "game") {
         this.hud.toggleInventory();
       } else if (e.code === "Space") {
         e.preventDefault();
@@ -142,9 +153,61 @@ export class Application {
     this._loop();
   }
 
+  startGame(continueRun) {
+    const vault = continueRun ? loadVault() : null;
+    this.state.mode = "game";
+    this.menuHUD.hide();
+    this.menuScene.setActive(false);
+    if (this.hud && this.hud.show) this.hud.show();
+
+    this._initGameWithVault(vault || [null, null]);
+    this.hud.refreshAll();
+  }
+
+  returnToMenu() {
+    saveVault(this.run.state.permanentVault);
+    this.state.mode = "menu";
+    this.menuScene.setActive(true);
+    this.menuHUD.show();
+    if (this.hud && this.hud.hide) this.hud.hide();
+  }
+
+  _initGameWithVault(vault) {
+    this.rng = new RNG((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
+    this.state.gameOver = false;
+    this.state.victory = false;
+    this.state.runComplete = false;
+    this.state.wavePause = false;
+    this.state.paused = false;
+    this.state.roomIndex = 0;
+    this.state.clearedRooms = 0;
+
+    this.enemies.clearAll();
+    this.loot.clearAll();
+    this.knight.reset();
+    this.dungeon.clear();
+    this.dungeon.buildStartingRoom();
+    this.enemies.spawnForRoom(this.dungeon.currentRoom, 0);
+    this.state.enemiesRemaining = this.enemies.aliveCount();
+    this.knight.position.set(0, 0, -7);
+    this.knight.state.facingY = 0;
+    this.knight.state.targetFacing = 0;
+    this.cameraRig.follow(this.knight);
+    this.run.startRun(vault);
+    this.hud.refreshAll();
+    if (this.hud.hideWaveComplete) this.hud.hideWaveComplete();
+    if (this.hud.hideRunCompleteUI) this.hud.hideRunCompleteUI();
+  }
+
   _loop() {
     requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.05);
+
+    if (this.state.mode === "menu") {
+      this.menuScene.update(dt);
+      this.menuScene.render(this.renderer);
+      return;
+    }
 
     if (this.state.paused || this.state.gameOver || this.state.runComplete || this.state.wavePause) {
       this.renderer.render(this.scene, this.camera);
@@ -185,51 +248,12 @@ export class Application {
   }
 
   restart() {
-    this.rng = new RNG(0xc0ffee + Math.floor(Math.random() * 0xffff));
-    this.state.runActive = true;
-    this.state.roomIndex = 0;
-    this.state.clearedRooms = 0;
-    this.state.gameOver = false;
-    this.state.victory = false;
-    this.state.runComplete = false;
-    this.state.wavePause = false;
-
-    this.enemies.clearAll();
-    this.loot.clearAll();
-    this.knight.reset();
-    this.dungeon.clear();
-    this.dungeon.buildStartingRoom();
-    this.enemies.spawnForRoom(this.dungeon.currentRoom, 0);
-    this.state.enemiesRemaining = this.enemies.aliveCount();
-    this.knight.position.set(0, 0, -7);
-    this.cameraRig.follow(this.knight);
-    this.run.startRun(this.run.state.permanentVault);
-    this.hud.refreshAll();
-    if (this.hud.hideWaveComplete) this.hud.hideWaveComplete();
-    if (this.hud.hideRunCompleteUI) this.hud.hideRunCompleteUI();
+    this._initGameWithVault(this.run.state.permanentVault);
   }
 
   nextRun() {
-    this.rng = new RNG(0xc0ffee + Math.floor(Math.random() * 0xffff));
-    this.state.gameOver = false;
-    this.state.runComplete = false;
-    this.state.roomIndex = 0;
-    this.state.clearedRooms = 0;
-    this.state.wavePause = false;
-
-    this.enemies.clearAll();
-    this.loot.clearAll();
-    this.knight.reset();
-    this.dungeon.clear();
-    this.dungeon.buildStartingRoom();
-    this.enemies.spawnForRoom(this.dungeon.currentRoom, 0);
-    this.state.enemiesRemaining = this.enemies.aliveCount();
-    this.knight.position.set(0, 0, -7);
-    this.cameraRig.follow(this.knight);
-    this.run.startRun(this.run.state.permanentVault);
-    this.hud.refreshAll();
-    this.hud.hideRunCompleteUI();
-    if (this.hud.hideWaveComplete) this.hud.hideWaveComplete();
+    saveVault(this.run.state.permanentVault);
+    this._initGameWithVault(this.run.state.permanentVault);
   }
 
   advanceToNextRoom() {

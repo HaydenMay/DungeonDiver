@@ -1,3 +1,5 @@
+import { saveVault } from "../core/Persistence.js";
+
 const ROOMS_PER_FLOOR = 5;
 
 function emptyEquipped() {
@@ -149,6 +151,9 @@ export function createRunManager(app) {
     const i0 = pool.get(slot0ItemId) || null;
     const i1 = pool.get(slot1ItemId) || null;
     state.permanentVault = [i0, i1];
+    try {
+      saveVault(state.permanentVault);
+    } catch (e) {}
   }
 
   function getTotalStats() {

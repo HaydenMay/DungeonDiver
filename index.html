@@ -2,12 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Dungeon Diver</title>
     <link rel="stylesheet" href="/styles/style.css" />
   </head>
   <body>
     <canvas class="webgl"></canvas>
+    <div class="touch-controls">
+      <div class="joystick-zone" id="joystick-zone">
+        <div class="joystick-base" id="joystick-base">
+          <div class="joystick-thumb" id="joystick-thumb"></div>
+        </div>
+      </div>
+      <div class="mobile-action-btn btn-attack" id="btn-attack">ATK</div>
+      <div class="mobile-action-btn btn-dodge" id="btn-dodge">DODGE</div>
+      <div class="mobile-action-btn btn-inventory" id="btn-inventory">INV</div>
+      <div class="camera-hint">DRAG RIGHT TO LOOK</div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
