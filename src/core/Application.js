@@ -14,7 +14,7 @@ export class Application {
   constructor() {
     this.canvas = document.querySelector("canvas.webgl");
     this.clock = new THREE.Clock();
-    this.rng = new RNG(0xc0ffee);
+    this.rng = new RNG((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
     this.state = {
       runActive: true,
       roomIndex: 0,
