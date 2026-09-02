@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 export default defineConfig({
-  base: process.env.GITHUB_PAGES ? '/DungeonDiver/' : '/',
+  base: process.env.CI ? '/DungeonDiver/' : '/',
   plugins: [
     {
       name: 'screenshot-server',
